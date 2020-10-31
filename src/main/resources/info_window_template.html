@@ -1,0 +1,18 @@
+<div class="regioninfo">
+    <div class="infowindow">
+        <h3>{{town_name}}{{#nation}} ({{nation_name}}){{/nation}}</h3>
+        Mayor: <b>{{ mayor_name }}</b><br />
+        {{^assistants.isEmpty}}
+            Associates: {{#pop2}}{{#assistants}}<b>{{.}}</b>, {{/assistants}}{{/pop2}}<br/>
+        {{/assistants.isEmpty}}
+        <hr />
+        <small>
+        Upkeep: <b>{{#upkeep}}yes{{/upkeep}}{{^upkeep}}no{{/upkeep}}</b><br/>
+        PVP: <b>{{#pvp}}enabled{{/pvp}}{{^pvp}}disabled{{/pvp}}</b><br/>
+        Mobs: <b>{{#mobs}}enabled{{/mobs}}{{^mobs}}disabled{{/mobs}}</b><br/>
+        Public: <b>{{#public}}yes{{/public}}{{^public}}no{{/public}}</b><br/>
+        Explosion: <b>{{#explosion}}enabled{{/explosion}}{{^explosion}}disabled{{/explosion}}</b><br/>
+        Fire: <b>{{#fire}}enabled{{/fire}}{{^fire}}disabled{{/fire}}</b><br/>
+        </small>
+    </div>
+</div>
