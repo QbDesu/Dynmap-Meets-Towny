@@ -40,18 +40,19 @@ public class InfoWindow {
 
         if(town.hasMayor()) {
             Resident mayor = town.getMayor();
+            properties.put("mayor", mayor);
             properties.put("mayor_prefix", mayor.getNamePrefix());
             properties.put("mayor_name", mayor.getName());
             properties.put("mayor_postfix", mayor.getNamePostfix());
             //TODO: pre-formatted name
         }
 
-        properties.put("residents",
+        properties.put("resident_count", town.getResidents().size());
+        properties.put("resident_names",
                 town.getResidents().stream()
                         .map(TownyObject::getName)
                         .collect(Collectors.toList()));
-
-        properties.put("assistants",
+        properties.put("assistant_names",
                 town.getRank("assistant").stream()
                         .map(TownyObject::getName)
                         .collect(Collectors.toList()));
@@ -59,7 +60,6 @@ public class InfoWindow {
         if(town.getRegistered() != 0)
             properties.put("founded", TownyFormatter.registeredFormat.format(town.getRegistered()));
 
-        properties.put("upkeep", town.hasUpkeep());
         properties.put("pvp", town.isPVP());
         properties.put("mobs", town.hasMobs());
         properties.put("public", town.isPublic());
@@ -71,12 +71,18 @@ public class InfoWindow {
         properties.put("war", town.isAdminEnabledPVP());
         properties.put("capital", town.isCapital());
 
-        properties.put("balance", TownyEconomyHandler.getFormattedBalance(bankCache.get(town)));
-
-        if (town.isTaxPercentage())
-            properties.put("taxes", town.getTaxes() + "%");
-        else
-            properties.put("taxes", TownyEconomyHandler.getFormattedBalance(town.getTaxes()));
+        if(TownySettings.isUsingEconomy()){
+            properties.put("economy", true);
+            properties.put("balance", TownyEconomyHandler.getFormattedBalance(bankCache.get(town)));
+            if (town.isTaxPercentage())
+                properties.put("taxes", town.getTaxes() + "%");
+            else
+                properties.put("taxes", TownyEconomyHandler.getFormattedBalance(town.getTaxes()));
+            properties.put("upkeep", town.hasUpkeep());
+            properties.put("upkeep_cost", TownyEconomyHandler.getFormattedBalance(TownySettings.getTownUpkeepCost(town)));
+        } else {
+            properties.put("economy", false);
+        }
 
         /*
         String dispNames = "";
@@ -103,9 +109,6 @@ public class InfoWindow {
         } else {
             townicon = "<img src=\"tiles/_markers_/greenflag.png\">  ";
         }
-
-        //v = v.replace("%upkeep%", TownyEconomyHandler.getFormattedBalance(TownySettings.getTownUpkeepCost(town)));
-
          */
 
         return TemplateHelper.render(this.template, properties);

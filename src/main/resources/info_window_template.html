@@ -1,18 +1,40 @@
 <div class="regioninfo">
     <div class="infowindow">
-        <h3>{{town_name}}{{#nation}} ({{nation_name}}){{/nation}}</h3>
-        Mayor: <b>{{ mayor_name }}</b><br />
-        {{^assistants.isEmpty}}
-            Associates: {{#pop2}}{{#assistants}}<b>{{.}}</b>, {{/assistants}}{{/pop2}}<br/>
-        {{/assistants.isEmpty}}
-        <hr />
-        <small>
-        Upkeep: <b>{{#upkeep}}yes{{/upkeep}}{{^upkeep}}no{{/upkeep}}</b><br/>
-        PVP: <b>{{#pvp}}enabled{{/pvp}}{{^pvp}}disabled{{/pvp}}</b><br/>
-        Mobs: <b>{{#mobs}}enabled{{/mobs}}{{^mobs}}disabled{{/mobs}}</b><br/>
-        Public: <b>{{#public}}yes{{/public}}{{^public}}no{{/public}}</b><br/>
-        Explosion: <b>{{#explosion}}enabled{{/explosion}}{{^explosion}}disabled{{/explosion}}</b><br/>
-        Fire: <b>{{#fire}}enabled{{/fire}}{{^fire}}disabled{{/fire}}</b><br/>
-        </small>
+        <h3 style="font-size:large;margin:0">{{town_name}}</h3>
+        {{#board}}
+        <p style="margin:0">{{board}}</p>
+        {{/board}}
+        <hr/>
+        {{#founded}}
+        <p style="margin:0">
+            <b>Founded:</b> {{founded}}
+        </p>
+        {{/founded}}
+        {{#mayor}}
+        <p style="margin:0">
+            <b>Mayor:</b> {{mayor_name}}
+        </p>
+        {{/mayor}}
+        {{#nation}}
+        <p style="margin:0">
+            <b>Nation:</b>
+            {{nation_name}}
+        </p>
+        {{/nation}}
+        <hr/>
+        {{#economy}}
+        <p style="margin:0">
+            <b>Bank:</b>
+            {{balance}}
+        </p>
+        <p style="margin:0">
+            <b>Upkeep:</b>
+            {{upkeep}}
+        </p>
+        {{/economy}}
+        <p style="margin:0">
+            <b>Resident(s):</b>
+            {{resident_count}}
+        </p>
     </div>
 </div>
