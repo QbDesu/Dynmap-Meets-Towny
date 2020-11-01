@@ -15,8 +15,7 @@ public class TileFlags {
 	private long last_key = Long.MAX_VALUE;
 	private long[] last_row;
 	
-	public TileFlags() {
-	}
+	public TileFlags() {}
 	
 	public boolean getFlag(int x, int y) {
 		long k = (((long)(x >> 6)) << 32) | (0xFFFFFFFFL & (long)(y >> 6));
@@ -59,6 +58,7 @@ public class TileFlags {
 				row[y & 0x3F] &= ~(1L << (x & 0x3F));
 		}
 	}
+
 	public void clear() {
 		chunkmap.clear();
 		last_row = null;

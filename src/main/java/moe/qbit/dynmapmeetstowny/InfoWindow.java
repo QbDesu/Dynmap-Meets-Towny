@@ -19,16 +19,15 @@ public class InfoWindow {
         this.template = template;
     }
 
-    public String render(@Nonnull Town town, @Nullable TownBlockType btype) {
+    public String render(@Nonnull Town town, @Nullable TownBlockType townBlockType, BankCache bankCache) {
         Map<String,Object> properties = TemplateHelper.createScope();
         properties.put("town_name",town.getName());
-        if(btype != null)
-            properties.put("town_block_type",btype.toString());
+        if(townBlockType != null)
+            properties.put("town_block_type",townBlockType.toString());
 
         if(town.hasNation()) {
-            Nation nation = null;
             try {
-                nation = town.getNation();
+                Nation nation = town.getNation();
                 properties.put("nation", nation);
                 properties.put("nation_prefix", TownySettings.getNationPrefix(nation));
                 properties.put("nation_name", nation.getName().replaceAll("_", " "));
@@ -72,8 +71,8 @@ public class InfoWindow {
         properties.put("war", town.isAdminEnabledPVP());
         properties.put("capital", town.isCapital());
 
-        // TODO: town bank cache
-        //properties.put("balance", townBankBalanceCache.containsKey(town) ? TownyEconomyHandler.getFormattedBalance(townBankBalanceCache.get(town)) : "Accounts loading...");
+        properties.put("balance", TownyEconomyHandler.getFormattedBalance(bankCache.get(town)));
+
         if (town.isTaxPercentage())
             properties.put("taxes", town.getTaxes() + "%");
         else

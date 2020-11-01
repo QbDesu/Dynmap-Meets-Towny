@@ -6,22 +6,20 @@ import com.github.mustachejava.MustacheFactory;
 import com.google.common.base.Charsets;
 import com.palmergames.bukkit.towny.Towny;
 import com.palmergames.bukkit.towny.TownyAPI;
-import com.palmergames.bukkit.towny.TownySettings;
 import com.palmergames.bukkit.towny.TownyUniverse;
-import com.palmergames.bukkit.towny.exceptions.EconomyException;
 import com.palmergames.bukkit.towny.object.*;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
 import org.dynmap.DynmapAPI;
 import org.dynmap.markers.*;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
 
 public class DynmapMeetsTowny extends JavaPlugin {
@@ -30,6 +28,8 @@ public class DynmapMeetsTowny extends JavaPlugin {
 
     private InfoWindow info_window_template;
     private static final String NATION_NONE = "_none_";
+
+    private BankCache bankCache = new BankCache();
 
     Plugin dynmap;
     DynmapAPI dynmapAPI;
@@ -42,9 +42,6 @@ public class DynmapMeetsTowny extends JavaPlugin {
     private boolean playersbytown;
     private boolean playersbynation;
     private boolean dynamicNationColorsEnabled;
-    
-    private HashMap<Town, Long> townBankCache = new HashMap<>();
-    private HashMap<Town, Double> townBankBalanceCache = new HashMap<>();
 
     FileConfiguration cfg;
     MarkerSet set;
@@ -60,7 +57,8 @@ public class DynmapMeetsTowny extends JavaPlugin {
     boolean show_arenas;
     boolean show_embassies;
     boolean show_wilds;
-    boolean stop;
+
+    BukkitTask updateTimerTask;
     
     @Override
     public void onLoad() {
@@ -77,13 +75,9 @@ public class DynmapMeetsTowny extends JavaPlugin {
 
     private class TownyUpdate implements Runnable {
         public void run() {
-            if(!stop) {
-                updateTowns();
-                updateTownPlayerSets();
-                updateNationPlayerSets();
-                if (TownySettings.isUsingEconomy())
-                    updateTownBanks(System.currentTimeMillis());
-            }
+            updateTowns();
+            updateTownPlayerSets();
+            updateNationPlayerSets();
         }
     }
     
@@ -135,28 +129,6 @@ public class DynmapMeetsTowny extends JavaPlugin {
         for(Nation n : TownyUniverse.getInstance().getNationsMap().values()) {
             updateNation(n);
         }
-    }
-
-    private void updateTownBanks(long time) {
-		for (Town town : TownyUniverse.getInstance().getTownsMap().values())
-			if (townBankCache.containsKey(town)) {
-				if (time > townBankCache.get(town))
-					updateTownBank(town);    			
-    		} else {
-				updateTownBank(town);
-    		}
-    }
-    
-    private void updateTownBank(Town town) {
-
-    	double balance = 0.0;
-        try {
-			balance = town.getAccount().getHoldingBalance();
-		} catch (EconomyException | NullPointerException e) {
-			return;
-		}
-		townBankBalanceCache.put(town, balance);
-		townBankCache.put(town, System.currentTimeMillis() + ThreadLocalRandom.current().nextLong(300000, 360000)); // 5-6 Minutes added before next refresh.
     }
     
     private Map<String, AreaMarker> resareas = new HashMap<String, AreaMarker>();
@@ -271,7 +243,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
     	if(blocks.isEmpty())
     	    return;
         /* Build popup */
-        String desc = this.info_window_template.render(town, btype);
+        String desc = this.info_window_template.render(town, btype, bankCache);
 
     	HashMap<String, TileFlags> blkmaps = new HashMap<String, TileFlags>();
         LinkedList<TownBlock> nodevals = new LinkedList<TownBlock>();
@@ -655,22 +627,21 @@ public class DynmapMeetsTowny extends JavaPlugin {
         int per = cfg.getInt("update.period", 300);
         if(per < 15) per = 15;
         updperiod = (per*20);
-        stop = false;
 
-        getServer().getScheduler().runTaskTimerAsynchronously(this, new TownyUpdate(), 40, per);
+        this.updateTimerTask = getServer().getScheduler().runTaskTimerAsynchronously(this, new TownyUpdate(), 40, per);
 
-        LOGGER.info("version " + this.getDescription().getVersion() + " is activated");
+        LOGGER.info("Version " + this.getDescription().getVersion() + " is activated");
     }
 
     public void onDisable() {
         if(set != null) {
-            set.deleteMarkerSet();
-            set = null;
+            this.set.deleteMarkerSet();
+            this.set = null;
         }
-        resareas.clear();
-        townBankCache.clear();
-        townBankBalanceCache.clear();
-        stop = true;
+        this.resareas.clear();
+        this.bankCache.invalidate();
+        this.updateTimerTask.cancel();
+        this.updateTimerTask = null;
     }
 
 }
