@@ -61,11 +61,14 @@ public class DynmapMeetsTowny extends JavaPlugin {
     boolean show_wilds;
 
     BukkitTask updateTimerTask;
-    
+    private TownyChatListener townyChatHandler;
+
     @Override
     public void onLoad() {
         LOGGER = this.getLogger();
         this.initTownPopup();
+        if(Bukkit.getPluginManager().getPlugin("TownyChat")!=null)
+            this.initChat();
         // TODO: prettify when and were modules are loaded and initialized
     }
 
@@ -80,9 +83,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
     private void initChat(){
         // TODO: make chat handler template configurable
         Mustache template = MUSTACHE_FACTORY.compile(new StringReader("§2[WEB] {{name}}: §f{{message}}"),"info_window");
-        TownyChatListener townyChatHandler = new TownyChatListener(this.dynmapAPI, template);
-        this.dynmapAPI.setDisableChatToWebProcessing(true);
-        Bukkit.getPluginManager().registerEvents(townyChatHandler, this);
+        this.townyChatHandler = new TownyChatListener(this.dynmapAPI, template);
         this.getLogger().info("Replaced Dynmap Web Chat processing.");
     }
 
@@ -538,7 +539,8 @@ public class DynmapMeetsTowny extends JavaPlugin {
 
             /* Get Towny */
             if(pm.isPluginEnabled("TownyChat")) {
-                this.initChat();
+                this.dynmapAPI.setDisableChatToWebProcessing(true);
+                pm.registerEvents(townyChatHandler, this);
             }
         }
     }
