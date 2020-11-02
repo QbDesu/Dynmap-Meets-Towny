@@ -11,6 +11,7 @@ import com.palmergames.bukkit.towny.Towny;
 import com.palmergames.bukkit.towny.TownyAPI;
 import com.palmergames.bukkit.towny.TownyUniverse;
 import com.palmergames.bukkit.towny.object.*;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.Plugin;
@@ -22,6 +23,7 @@ import org.dynmap.markers.*;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -30,30 +32,27 @@ public class DynmapMeetsTowny extends JavaPlugin {
     public static final MustacheFactory MUSTACHE_FACTORY = new DefaultMustacheFactory();
     public static Logger LOGGER;
 
-    private InfoWindow info_window_template;
+    private TownPopup townPopup;
     private static final String NATION_NONE = "_none_";
 
     private final BankCache bankCache = new BankCache();
 
-    private Plugin dynmapPlugin;
     private DynmapAPI dynmapAPI;
     private MarkerAPI markerAPI;
-    private Towny towny;
-    private TownyUniverse townyUniverse;
 
     int townBlockSize;
     boolean reload = false;
-    private boolean playersbytown;
-    private boolean playersbynation;
+    private boolean playersByTown;
+    private boolean playersByNation;
     private boolean dynamicNationColorsEnabled;
 
     MarkerSet set;
 
-    long updperiod;
+    long updatePeriod;
     boolean use3d;
     AreaStyle defstyle;
     Map<String, AreaStyle> cusstyle;
-    Map<String, AreaStyle> nationstyle;
+    Map<String, AreaStyle> nationStyle;
     Set<String> visible;
     Set<String> hidden;
     boolean show_shops;
@@ -66,14 +65,25 @@ public class DynmapMeetsTowny extends JavaPlugin {
     @Override
     public void onLoad() {
         LOGGER = this.getLogger();
-        this.initInfoWindowTemplate();
+        this.initTownPopup();
+        // TODO: prettify when and were modules are loaded and initialized
     }
 
-    private void initInfoWindowTemplate(){
+    private void initTownPopup(){
+        // TODO: make info window template configurable
         InputStream info_window_template_stream = this.getResource("info_window_template.html");
         assert info_window_template_stream != null;
         Mustache template = MUSTACHE_FACTORY.compile(new InputStreamReader(info_window_template_stream, Charsets.UTF_8),"info_window");
-        this.info_window_template = new InfoWindow(template);
+        this.townPopup = new TownPopup(template);
+    }
+
+    private void initChat(){
+        // TODO: make chat handler template configurable
+        Mustache template = MUSTACHE_FACTORY.compile(new StringReader("§2[WEB] {{name}}: §f{{message}}"),"info_window");
+        TownyChatListener townyChatHandler = new TownyChatListener(this.dynmapAPI, template);
+        this.dynmapAPI.setDisableChatToWebProcessing(true);
+        Bukkit.getPluginManager().registerEvents(townyChatHandler, this);
+        this.getLogger().info("Replaced Dynmap Web Chat processing.");
     }
 
     private class TownyUpdate implements Runnable {
@@ -85,7 +95,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
     }
     
     private void updateTown(Town town) {
-        if(!playersbytown) return;
+        if(!playersByTown) return;
         Set<String> plids = Sets.newHashSet();
         List<Resident> res = town.getResidents();
         for(Resident r : res) {
@@ -102,14 +112,14 @@ public class DynmapMeetsTowny extends JavaPlugin {
     }
 
     private void updateTownPlayerSets() {
-        if(!playersbytown) return;
+        if(!playersByTown) return;
         for(Town t : TownyUniverse.getInstance().getTownsMap().values()) {
             updateTown(t);
         }
     }
 
     private void updateNation(Nation nat) {
-        if(!playersbynation) return;
+        if(!playersByNation) return;
         Set<String> plids = Sets.newHashSet();
         List<Resident> res = nat.getResidents();
         for(Resident r : res) {
@@ -126,7 +136,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
     }
 
     private void updateNationPlayerSets() {
-        if(!playersbynation) return;
+        if(!playersByNation) return;
         for(Nation n : TownyUniverse.getInstance().getNationsMap().values()) {
             updateNation(n);
         }
@@ -135,21 +145,21 @@ public class DynmapMeetsTowny extends JavaPlugin {
     private Map<String, AreaMarker> resareas = Maps.newHashMap();
     private Map<String, Marker> resmark = Maps.newHashMap();
     
-    private boolean isVisible(String id, String worldname) {
+    private boolean isVisible(String id, String worldName) {
         if((visible != null) && (visible.size() > 0)) {
-            if(!visible.contains(id) && !visible.contains("world:" + worldname)) {
+            if(!visible.contains(id) && !visible.contains("world:" + worldName)) {
                 return false;
             }
         }
         if((hidden != null) && (hidden.size() > 0)) {
-            return !hidden.contains(id) && !hidden.contains("world:" + worldname);
+            return !hidden.contains(id) && !hidden.contains("world:" + worldName);
         }
         return true;
     }
         
     private void addStyle(Town town, String resid, String nationId, AreaMarker m, TownBlockType townBlockType) {
         AreaStyle as = cusstyle.get(resid);	/* Look up custom style for town, if any */
-        AreaStyle ns = nationstyle.get(nationId);	/* Look up nation style, if any */
+        AreaStyle ns = nationStyle.get(nationId);	/* Look up nation style, if any */
         
         if(townBlockType == null) {
             m.setLineStyle(defstyle.getStrokeWeight(as, ns), defstyle.getStrokeOpacity(as, ns), defstyle.getStrokeColor(as, ns));
@@ -193,7 +203,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
         	if(town.getNation() != null)
         		natid = town.getNation().getName();
         } catch (Exception ignored) {}
-        AreaStyle ns = nationstyle.get(natid);
+        AreaStyle ns = nationStyle.get(natid);
         
         if(town.isCapital())
             return defstyle.getCapitalMarker(as, ns);
@@ -247,7 +257,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
     	    return;
 
         /* Build popup */
-        String desc = this.info_window_template.render(town, townBlockType, bankCache);
+        String desc = this.townPopup.render(town, townBlockType, bankCache);
 
         /* worldName -> tileFlags */
     	HashMap<String, TileFlags> blockMaps = Maps.newHashMap();
@@ -503,13 +513,12 @@ public class DynmapMeetsTowny extends JavaPlugin {
 
     public void onEnable() {
         LOGGER.info("initializing");
-        PluginManager pm = getServer().getPluginManager();
+        PluginManager pm = Bukkit.getPluginManager();
 
         /* Get dynmap */
         Plugin dynmap_plugin = pm.getPlugin("dynmap");
         assert dynmap_plugin != null;
         assert dynmap_plugin instanceof DynmapAPI;
-        this.dynmapPlugin = dynmap_plugin;
         this.dynmapAPI = (DynmapAPI) dynmap_plugin;
 
         /* Get Towny */
@@ -518,13 +527,19 @@ public class DynmapMeetsTowny extends JavaPlugin {
             LOGGER.severe("Cannot find Towny!");
             return;
         }
-        towny = (Towny)p;
+        Towny towny = (Towny) p;
 
-        getServer().getPluginManager().registerEvents(new DMTServerListener(this), this);
+        pm.registerEvents(new DMTServerListener(this), this);
+
         /* If both enabled, activate */
-        if(dynmapPlugin.isEnabled() && towny.isEnabled()) {
+        if(dynmap_plugin.isEnabled() && towny.isEnabled()) {
             LOGGER.info("Activating Dynmap-Meets-Towny plugin.");
             activate();
+
+            /* Get Towny */
+            if(pm.isPluginEnabled("TownyChat")) {
+                this.initChat();
+            }
         }
     }
     
@@ -535,7 +550,6 @@ public class DynmapMeetsTowny extends JavaPlugin {
             return;
         }
         /* Connect to towny API */
-        townyUniverse = TownyUniverse.getInstance();
         townBlockSize = Coord.getCellSize();
         
         /* Load configuration */
@@ -579,7 +593,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
         defstyle = new AreaStyle(cfg, "regionstyle", markerAPI);
 
         cusstyle = Maps.newHashMap();
-        nationstyle = Maps.newHashMap();
+        nationStyle = Maps.newHashMap();
 
         ConfigurationSection sect = cfg.getConfigurationSection("custstyle");
         if(sect != null) {
@@ -594,7 +608,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
             Set<String> ids = sect.getKeys(false);
             
             for(String id : ids) {
-                nationstyle.put(id, new AreaStyle(cfg, "nationstyle." + id, markerAPI));
+                nationStyle.put(id, new AreaStyle(cfg, "nationstyle." + id, markerAPI));
             }
         }
 
@@ -604,27 +618,27 @@ public class DynmapMeetsTowny extends JavaPlugin {
         hidden = new HashSet<String>(hid);
 
         /* Check if player sets enabled */
-        playersbytown = cfg.getBoolean("visibility-by-town", false);
-        if(playersbytown) {
+        playersByTown = cfg.getBoolean("visibility-by-town", false);
+        if(playersByTown) {
             try {
                 if(!dynmapAPI.testIfPlayerInfoProtected()) {
-                    playersbytown = false;
+                    playersByTown = false;
                     LOGGER.info("Dynmap does not have player-info-protected enabled - visibility-by-town will have no effect");
                 }
             } catch (NoSuchMethodError x) {
-                playersbytown = false;
+                playersByTown = false;
                 LOGGER.info("Dynmap does not support function needed for 'visibility-by-town' - need to upgrade to 0.60 or later");
             }
         }
-        playersbynation = cfg.getBoolean("visibility-by-nation", false);
-        if(playersbynation) {
+        playersByNation = cfg.getBoolean("visibility-by-nation", false);
+        if(playersByNation) {
             try {
                 if(!dynmapAPI.testIfPlayerInfoProtected()) {
-                    playersbynation = false;
+                    playersByNation = false;
                     LOGGER.info("Dynmap does not have player-info-protected enabled - visibility-by-nation will have no effect");
                 }
             } catch (NoSuchMethodError x) {
-                playersbynation = false;
+                playersByNation = false;
                 LOGGER.info("Dynmap does not support function needed for 'visibility-by-nation' - need to upgrade to 0.60 or later");
             }
         }
@@ -634,7 +648,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
         /* Set up update job - based on periond */
         int per = cfg.getInt("update.period", 300);
         if(per < 15) per = 15;
-        updperiod = (per*20);
+        updatePeriod = (per*20);
 
         this.updateTimerTask = getServer().getScheduler().runTaskTimerAsynchronously(this, new TownyUpdate(), 40, per);
 

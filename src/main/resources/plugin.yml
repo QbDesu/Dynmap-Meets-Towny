@@ -1,6 +1,7 @@
 name: Dynmap-Meets-Towny
 version: ${project.version}
 depend: [ Towny, dynmap ]
+softdepend: [ TownyChat ]
 main: moe.qbit.dynmapmeetstowny.DynmapMeetsTowny
 api-version: 1.16
 authors: [ Qb ]
