@@ -17,15 +17,12 @@ import org.dynmap.DynmapWebChatEvent;
 import java.util.Map;
 
 public class TownyChatListener implements Listener {
-    private static final boolean LOGIN_MESSAGES = true;
-    private static final boolean LOGOUT_MESSAGES = true;
-    private final DynmapAPI dynmapAPI;
-    private final Mustache messageTemplate;
+    private DynmapAPI dynmapAPI;
+    private boolean sendLoginMessages = true;
+    private boolean sendLogoutMessages = true;
+    private Mustache messageTemplate;
 
-    public TownyChatListener(DynmapAPI dynmapAPI, Mustache messageTemplate){
-        this.dynmapAPI = dynmapAPI;
-        this.messageTemplate = messageTemplate;
-    }
+    public TownyChatListener(){}
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onSeverMessage(AsyncChatHookEvent event) {
@@ -50,17 +47,33 @@ public class TownyChatListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerLogin(PlayerLoginEvent event) {
-        if(LOGIN_MESSAGES && event.getResult() == PlayerLoginEvent.Result.ALLOWED) {
+        if(sendLoginMessages && event.getResult() == PlayerLoginEvent.Result.ALLOWED) {
             Player player = event.getPlayer();
-            dynmapAPI.postPlayerJoinQuitToWeb(player, true);
+            this.dynmapAPI.postPlayerJoinQuitToWeb(player, true);
         }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event) {
-        if(LOGOUT_MESSAGES) {
+        if(sendLogoutMessages) {
             Player player = event.getPlayer();
             dynmapAPI.postPlayerJoinQuitToWeb(player, false);
         }
+    }
+
+    public void setDynmapAPI(DynmapAPI dynmapAPI) {
+        this.dynmapAPI = dynmapAPI;
+    }
+
+    public void setMessageTemplate(Mustache messageTemplate) {
+        this.messageTemplate = messageTemplate;
+    }
+
+    public void setSendLoginMessages(boolean sendLoginMessages) {
+        this.sendLoginMessages = sendLoginMessages;
+    }
+
+    public void setSendLogoutMessages(boolean sendLogoutMessages) {
+        this.sendLogoutMessages = sendLogoutMessages;
     }
 }

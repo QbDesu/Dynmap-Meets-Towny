@@ -4,7 +4,6 @@ import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheFactory;
 import com.google.common.base.Charsets;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.palmergames.bukkit.towny.Towny;
@@ -26,7 +25,6 @@ import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.util.*;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 public class DynmapMeetsTowny extends JavaPlugin {
     public static final MustacheFactory MUSTACHE_FACTORY = new DefaultMustacheFactory();
@@ -61,7 +59,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
     boolean show_wilds;
 
     BukkitTask updateTimerTask;
-    private TownyChatListener townyChatHandler;
+    private TownyChatListener townyChatListener;
 
     @Override
     public void onLoad() {
@@ -74,17 +72,14 @@ public class DynmapMeetsTowny extends JavaPlugin {
 
     private void initTownPopup(){
         // TODO: make info window template configurable
-        InputStream info_window_template_stream = this.getResource("info_window_template.html");
-        assert info_window_template_stream != null;
-        Mustache template = MUSTACHE_FACTORY.compile(new InputStreamReader(info_window_template_stream, Charsets.UTF_8),"info_window");
+        InputStream town_popup_template_stream = this.getResource("town_popup_template.html");
+        assert town_popup_template_stream != null;
+        Mustache template = MUSTACHE_FACTORY.compile(new InputStreamReader(town_popup_template_stream, Charsets.UTF_8),"town_popup");
         this.townPopup = new TownPopup(template);
     }
 
     private void initChat(){
-        // TODO: make chat handler template configurable
-        Mustache template = MUSTACHE_FACTORY.compile(new StringReader("§2[WEB] {{name}}: §f{{message}}"),"info_window");
-        this.townyChatHandler = new TownyChatListener(this.dynmapAPI, template);
-        this.getLogger().info("Replaced Dynmap Web Chat processing.");
+        this.townyChatListener = new TownyChatListener();
     }
 
     private class TownyUpdate implements Runnable {
@@ -535,9 +530,19 @@ public class DynmapMeetsTowny extends JavaPlugin {
             activate(cfg);
 
             /* Get Towny */
-            if(pm.isPluginEnabled("TownyChat") && cfg.getBoolean("chat.enable", true)) {
+            if(pm.isPluginEnabled("TownyChat") && cfg.getBoolean("chat.enable")) {
+                this.townyChatListener.setSendLoginMessages(cfg.getBoolean("chat.loginMessages"));
+                this.townyChatListener.setSendLogoutMessages(cfg.getBoolean("chat.logoutMessages"));
+
                 this.dynmapAPI.setDisableChatToWebProcessing(true);
-                pm.registerEvents(townyChatHandler, this);
+                this.townyChatListener.setDynmapAPI(this.dynmapAPI);
+
+                String template_string = cfg.getString("chat.messageTemplate");
+                Mustache template = MUSTACHE_FACTORY.compile(new StringReader(template_string),"message_template");
+                this.townyChatListener.setMessageTemplate(template);
+
+                pm.registerEvents(this.townyChatListener, this);
+                this.getLogger().info("Replaced Dynmap Web Chat processing.");
             }
         }
     }

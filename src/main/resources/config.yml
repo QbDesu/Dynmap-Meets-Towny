@@ -73,3 +73,6 @@ nationstyle:
 # Chat settings for use with TownyChat
 chat:
   enable: true
+  messageTemplate: "§2[WEB] {{name}}: §f{{message}}"
+  loginMessages: true
+  logoutMessages: true
