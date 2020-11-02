@@ -4,6 +4,9 @@ import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.Mustache;
 import com.github.mustachejava.MustacheFactory;
 import com.google.common.base.Charsets;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.palmergames.bukkit.towny.Towny;
 import com.palmergames.bukkit.towny.TownyAPI;
 import com.palmergames.bukkit.towny.TownyUniverse;
@@ -21,6 +24,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.*;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 public class DynmapMeetsTowny extends JavaPlugin {
     public static final MustacheFactory MUSTACHE_FACTORY = new DefaultMustacheFactory();
@@ -29,21 +33,20 @@ public class DynmapMeetsTowny extends JavaPlugin {
     private InfoWindow info_window_template;
     private static final String NATION_NONE = "_none_";
 
-    private BankCache bankCache = new BankCache();
+    private final BankCache bankCache = new BankCache();
 
-    Plugin dynmap;
-    DynmapAPI dynmapAPI;
-    MarkerAPI markerapi;
-    Towny towny;
-    TownyUniverse tuniv;
+    private Plugin dynmapPlugin;
+    private DynmapAPI dynmapAPI;
+    private MarkerAPI markerAPI;
+    private Towny towny;
+    private TownyUniverse townyUniverse;
 
-    int townblocksize;
+    int townBlockSize;
     boolean reload = false;
     private boolean playersbytown;
     private boolean playersbynation;
     private boolean dynamicNationColorsEnabled;
 
-    FileConfiguration cfg;
     MarkerSet set;
 
     long updperiod;
@@ -83,18 +86,17 @@ public class DynmapMeetsTowny extends JavaPlugin {
     
     private void updateTown(Town town) {
         if(!playersbytown) return;
-        Set<String> plids = new HashSet<String>();
+        Set<String> plids = Sets.newHashSet();
         List<Resident> res = town.getResidents();
         for(Resident r : res) {
             plids.add(r.getName());
         }
         String setid = "towny.town." + town.getName();
-        PlayerSet set = markerapi.getPlayerSet(setid);  /* See if set exists */
+        PlayerSet set = markerAPI.getPlayerSet(setid);  /* See if set exists */
         if(set == null) {
-            set = markerapi.createPlayerSet(setid, true, plids, false);
+            markerAPI.createPlayerSet(setid, true, plids, false);
             LOGGER.info("Added player visibility set '" + setid + "' for town " + town.getName());
-        }
-        else {
+        } else {
             set.setPlayers(plids);
         }
     }
@@ -108,18 +110,17 @@ public class DynmapMeetsTowny extends JavaPlugin {
 
     private void updateNation(Nation nat) {
         if(!playersbynation) return;
-        Set<String> plids = new HashSet<String>();
+        Set<String> plids = Sets.newHashSet();
         List<Resident> res = nat.getResidents();
         for(Resident r : res) {
             plids.add(r.getName());
         }
         String setid = "towny.nation." + nat.getName();
-        PlayerSet set = markerapi.getPlayerSet(setid);  /* See if set exists */
+        PlayerSet set = markerAPI.getPlayerSet(setid);  /* See if set exists */
         if(set == null) {
-            set = markerapi.createPlayerSet(setid, true, plids, false);
+            markerAPI.createPlayerSet(setid, true, plids, false);
             LOGGER.info("Added player visibility set '" + setid + "' for nation " + nat.getName());
-        }
-        else {
+        } else {
             set.setPlayers(plids);
         }
     }
@@ -131,8 +132,8 @@ public class DynmapMeetsTowny extends JavaPlugin {
         }
     }
     
-    private Map<String, AreaMarker> resareas = new HashMap<String, AreaMarker>();
-    private Map<String, Marker> resmark = new HashMap<String, Marker>();
+    private Map<String, AreaMarker> resareas = Maps.newHashMap();
+    private Map<String, Marker> resmark = Maps.newHashMap();
     
     private boolean isVisible(String id, String worldname) {
         if((visible != null) && (visible.size() > 0)) {
@@ -146,17 +147,17 @@ public class DynmapMeetsTowny extends JavaPlugin {
         return true;
     }
         
-    private void addStyle(Town town, String resid, String natid, AreaMarker m, TownBlockType btype) {
+    private void addStyle(Town town, String resid, String nationId, AreaMarker m, TownBlockType townBlockType) {
         AreaStyle as = cusstyle.get(resid);	/* Look up custom style for town, if any */
-        AreaStyle ns = nationstyle.get(natid);	/* Look up nation style, if any */
+        AreaStyle ns = nationstyle.get(nationId);	/* Look up nation style, if any */
         
-        if(btype == null) {
+        if(townBlockType == null) {
             m.setLineStyle(defstyle.getStrokeWeight(as, ns), defstyle.getStrokeOpacity(as, ns), defstyle.getStrokeColor(as, ns));
         }
         else {
             m.setLineStyle(1, 0, 0);
         }
-        m.setFillStyle(defstyle.getFillOpacity(as, ns), defstyle.getFillColor(as, ns, btype));
+        m.setFillStyle(defstyle.getFillOpacity(as, ns), defstyle.getFillColor(as, ns, townBlockType));
         double y = defstyle.getY(as, ns);
         m.setRangeY(y, y);
         m.setBoostFlag(defstyle.getBoost(as, ns));
@@ -180,7 +181,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
                     m.setFillStyle(fillOpacity, nationColor);
                 }
             }
-        } catch (Exception ex) {}
+        } catch (Exception ignored) {}
 
     }
 
@@ -191,7 +192,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
         try {
         	if(town.getNation() != null)
         		natid = town.getNation().getName();
-        } catch (Exception ex) {}
+        } catch (Exception ignored) {}
         AreaStyle ns = nationstyle.get(natid);
         
         if(town.isCapital())
@@ -200,14 +201,14 @@ public class DynmapMeetsTowny extends JavaPlugin {
             return defstyle.getHomeMarker(as, ns);
     }
  
-    enum direction { XPLUS, ZPLUS, XMINUS, ZMINUS };
+    enum direction { XPLUS, ZPLUS, XMINUS, ZMINUS }
         
     /**
      * Find all contiguous blocks, set in target and clear in source
      */
     private int floodFillTarget(TileFlags src, TileFlags dest, int x, int y) {
         int cnt = 0;
-        ArrayDeque<int[]> stack = new ArrayDeque<int[]>();
+        ArrayDeque<int[]> stack = new ArrayDeque<>();
         stack.push(new int[] { x, y });
         
         while(!stack.isEmpty()) {
@@ -232,73 +233,80 @@ public class DynmapMeetsTowny extends JavaPlugin {
     }
     
     /* Handle specific town */
-    private void handleTown(Town town, Map<String, AreaMarker> newmap, Map<String, Marker> newmark, TownBlockType btype) {
+    /** ^ Yeah, thanks for that comment mate, really helped with understanding what this clusterfuxk of a function does **/
+    private void handleTown(Town town, Map<String, AreaMarker> newmap, Map<String, Marker> newmark, TownBlockType townBlockType) {
+
         String name = town.getName();
-        double[] x = null;
-        double[] z = null;
+        double[] x;
+        double[] z;
         int poly_index = 0; /* Index of polygon for given town */
-                
+
         /* Handle areas */
     	Collection<TownBlock> blocks = town.getTownBlocks();
     	if(blocks.isEmpty())
     	    return;
-        /* Build popup */
-        String desc = this.info_window_template.render(town, btype, bankCache);
 
-    	HashMap<String, TileFlags> blkmaps = new HashMap<String, TileFlags>();
-        LinkedList<TownBlock> nodevals = new LinkedList<TownBlock>();
-        TownyWorld curworld = null;
-        TileFlags curblks = null;
+        /* Build popup */
+        String desc = this.info_window_template.render(town, townBlockType, bankCache);
+
+        /* worldName -> tileFlags */
+    	HashMap<String, TileFlags> blockMaps = Maps.newHashMap();
+        LinkedList<TownBlock> nodeValues = Lists.newLinkedList();
+
+        TownyWorld currentWorld = null;
+        TileFlags currentBlock = null;
+
         boolean vis = false;
     	/* Loop through blocks: set flags on blockmaps for worlds */
-    	for(TownBlock b : blocks) {
-    	    /* If we're scanning for specific type, and this isn't it, skip */
-    	    if((btype != null) && (b.getType() != btype)) {
-    	        continue;
-    	    }
-    	    if(b.getWorld() != curworld) { /* Not same world */
-    	        String wname = b.getWorld().getName();
-    	        vis = isVisible(name, wname);  /* See if visible */
+    	for(TownBlock b :
+                blocks.stream()
+                        .filter(b -> townBlockType != null && b.getType() != townBlockType)
+                        .collect(Collectors.toList())) {
+
+    	    if(b.getWorld() != currentWorld) { /* Not same world */
+    	        String worldName = b.getWorld().getName();
+    	        vis = isVisible(name, worldName);  /* See if visible */
     	        if(vis) {  /* Only accumulate for visible areas */
-    	            curblks = blkmaps.get(wname);  /* Find existing */
-    	            if(curblks == null) {
-    	                curblks = new TileFlags();
-    	                blkmaps.put(wname, curblks);   /* Add fresh one */
+    	            currentBlock = blockMaps.get(worldName);  /* Find existing */
+    	            if(currentBlock == null) {
+    	                currentBlock = new TileFlags();
+    	                blockMaps.put(worldName, currentBlock);   /* Add fresh one */
     	            }
     	        }
-    	        curworld = b.getWorld();
+    	        currentWorld = b.getWorld();
     	    }
     	    if(vis) {
-    	        curblks.setFlag(b.getX(), b.getZ(), true); /* Set flag for block */
-    	        nodevals.addLast(b);
+    	        currentBlock.setFlag(b.getX(), b.getZ(), true); /* Set flag for block */
+    	        nodeValues.add(b);
     	    }
     	}
+
         /* Loop through until we don't find more areas */
-        while(nodevals != null) {
+        while(nodeValues != null) {
             LinkedList<TownBlock> ournodes = null;
             LinkedList<TownBlock> newlist = null;
             TileFlags ourblks = null;
             int minx = Integer.MAX_VALUE;
             int minz = Integer.MAX_VALUE;
-            for(TownBlock node : nodevals) {
+            for(TownBlock node : nodeValues) {
                 int nodex = node.getX();
                 int nodez = node.getZ();
                 if(ourblks == null) {   /* If not started, switch to world for this block first */
-                    if(node.getWorld() != curworld) {
-                        curworld = node.getWorld();
-                        curblks = blkmaps.get(curworld.getName());
+                    if(node.getWorld() != currentWorld) {
+                        currentWorld = node.getWorld();
+                        currentBlock = blockMaps.get(currentWorld.getName());
                     }
                 }
                 /* If we need to start shape, and this block is not part of one yet */
-                if((ourblks == null) && curblks.getFlag(nodex, nodez)) {
+                if((ourblks == null) && currentBlock.getFlag(nodex, nodez)) {
                     ourblks = new TileFlags();  /* Create map for shape */
-                    ournodes = new LinkedList<TownBlock>();
-                    floodFillTarget(curblks, ourblks, nodex, nodez);   /* Copy shape */
+                    ournodes = Lists.newLinkedList();
+                    floodFillTarget(currentBlock, ourblks, nodex, nodez);   /* Copy shape */
                     ournodes.add(node); /* Add it to our node list */
                     minx = nodex; minz = nodez;
                 }
                 /* If shape found, and we're in it, add to our node list */
-                else if((ourblks != null) && (node.getWorld() == curworld) &&
+                else if((ourblks != null) && (node.getWorld() == currentWorld) &&
                     (ourblks.getFlag(nodex, nodez))) {
                     ournodes.add(node);
                     if(nodex < minx) {
@@ -313,7 +321,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
                     newlist.add(node);
                 }
             }
-            nodevals = newlist; /* Replace list (null if no more to process) */
+            nodeValues = newlist; /* Replace list (null if no more to process) */
             if(ourblks != null) {
                 /* Trace outline of blocks - start from minx, minz going to x+ */
                 int init_x = minx;
@@ -385,23 +393,23 @@ public class DynmapMeetsTowny extends JavaPlugin {
                 }
                 /* Build information for specific area */
                 String polyid = town.getName() + "__" + poly_index;
-                if(btype != null) {
-                    polyid += "_" + btype;
+                if(townBlockType != null) {
+                    polyid += "_" + townBlockType;
                 }
                 int sz = linelist.size();
                 x = new double[sz];
                 z = new double[sz];
                 for(int i = 0; i < sz; i++) {
                     int[] line = linelist.get(i);
-                    x[i] = (double)line[0] * (double)townblocksize;
-                    z[i] = (double)line[1] * (double)townblocksize;
+                    x[i] = (double)line[0] * (double) townBlockSize;
+                    z[i] = (double)line[1] * (double) townBlockSize;
                 }
                 /* Find existing one */
                 AreaMarker m = resareas.remove(polyid); /* Existing area? */
                 if(m == null) {
-                    m = set.createAreaMarker(polyid, name, false, curworld.getName(), x, z, false);
+                    m = set.createAreaMarker(polyid, name, false, currentWorld.getName(), x, z, false);
                     if(m == null) {
-                        LOGGER.info("error adding area marker " + polyid);
+                        LOGGER.info("Error adding area marker " + polyid);
                         return;
                     }
                 }
@@ -416,51 +424,52 @@ public class DynmapMeetsTowny extends JavaPlugin {
                 try {
                 	if(town.getNation() != null)
                 		nation = town.getNation().getName();
-                } catch (Exception ex) {}
-                addStyle(town, town.getName(), nation, m, btype);
+                } catch (Exception ignored) {}
+                addStyle(town, town.getName(), nation, m, townBlockType);
 
                 /* Add to map */
                 newmap.put(polyid, m);
                 poly_index++;
             }
         }
-        if(btype == null) {
-            /* Now, add marker for home block */
-            TownBlock blk = null;
-            try {
-                blk = town.getHomeBlock();
-            } catch(Exception ex) {
-                LOGGER.severe("getHomeBlock exception " + ex);
-            }
-            if((blk != null) && isVisible(name, blk.getWorld().getName())) {
-                String markid = town.getName() + "__home";
-                MarkerIcon ico = getMarkerIcon(town);
-                if(ico != null) {
-                    Marker home = resmark.remove(markid);
-                    double xx = townblocksize*blk.getX() + (townblocksize/2);
-                    double zz = townblocksize*blk.getZ() + (townblocksize/2);
-                    if(home == null) {
-                        home = set.createMarker(markid, name, blk.getWorld().getName(), 
-                                xx, 64, zz, ico, false);
-                        if(home == null)
-                            return;
-                    }
-                    else {
-                        home.setLocation(blk.getWorld().getName(), xx, 64, zz);
-                        home.setLabel(name);   /* Update label */
-                        home.setMarkerIcon(ico);
-                    }
-                    home.setDescription(desc); /* Set popup */
-                    newmark.put(markid, home);
+
+        if(townBlockType != null) return;
+
+        /* Now, add marker for home block */
+        TownBlock block = null;
+        try {
+            block = town.getHomeBlock();
+        } catch(Exception ex) {
+            LOGGER.severe("getHomeBlock exception " + ex);
+        }
+        if((block != null) && isVisible(name, block.getWorld().getName())) {
+            String markerId = town.getName() + "__home";
+            MarkerIcon ico = getMarkerIcon(town);
+            if(ico != null) {
+                Marker home = resmark.remove(markerId);
+                double xx = townBlockSize * block.getX() + (townBlockSize /2);
+                double zz = townBlockSize * block.getZ() + (townBlockSize /2);
+                if(home == null) {
+                    home = set.createMarker(markerId, name, block.getWorld().getName(),
+                            xx, 64, zz, ico, false);
+                    if(home == null)
+                        return;
                 }
+                else {
+                    home.setLocation(block.getWorld().getName(), xx, 64, zz);
+                    home.setLabel(name);   /* Update label */
+                    home.setMarkerIcon(ico);
+                }
+                home.setDescription(desc); /* Set popup */
+                newmark.put(markerId, home);
             }
         }
     }
     
     /* Update Towny information */
     private void updateTowns() {
-        Map<String,AreaMarker> newmap = new HashMap<String,AreaMarker>(); /* Build new map */
-        Map<String,Marker> newmark = new HashMap<String,Marker>(); /* Build new map */
+        Map<String,AreaMarker> newmap = Maps.newHashMap(); /* Build new map */
+        Map<String,Marker> newmark = Maps.newHashMap(); /* Build new map */
         
         /* Loop through towns */
         List<Town> towns = TownyAPI.getInstance().getDataSource().getTowns();
@@ -480,11 +489,11 @@ public class DynmapMeetsTowny extends JavaPlugin {
             }
         }
         /* Now, review old map - anything left is gone */
-        for(AreaMarker oldm : resareas.values()) {
-            oldm.deleteMarker();
+        for(AreaMarker oldMarker : resareas.values()) {
+            oldMarker.deleteMarker();
         }
-        for(Marker oldm : resmark.values()) {
-            oldm.deleteMarker();
+        for(Marker oldMarker : resmark.values()) {
+            oldMarker.deleteMarker();
         }
         /* And replace with new map */
         resareas = newmap;
@@ -500,7 +509,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
         Plugin dynmap_plugin = pm.getPlugin("dynmap");
         assert dynmap_plugin != null;
         assert dynmap_plugin instanceof DynmapAPI;
-        this.dynmap = dynmap_plugin;
+        this.dynmapPlugin = dynmap_plugin;
         this.dynmapAPI = (DynmapAPI) dynmap_plugin;
 
         /* Get Towny */
@@ -513,21 +522,21 @@ public class DynmapMeetsTowny extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(new DMTServerListener(this), this);
         /* If both enabled, activate */
-        if(dynmap.isEnabled() && towny.isEnabled()) {
+        if(dynmapPlugin.isEnabled() && towny.isEnabled()) {
             LOGGER.info("Activating Dynmap-Meets-Towny plugin.");
             activate();
         }
     }
     
     private void activate() {
-        markerapi = dynmapAPI.getMarkerAPI();
-        if(markerapi == null) {
+        markerAPI = dynmapAPI.getMarkerAPI();
+        if(markerAPI == null) {
             LOGGER.severe("Error loading dynmap marker API!");
             return;
         }
         /* Connect to towny API */
-        tuniv = TownyUniverse.getInstance();
-        townblocksize = Coord.getCellSize();
+        townyUniverse = TownyUniverse.getInstance();
+        townBlockSize = Coord.getCellSize();
         
         /* Load configuration */
         if(reload) {
@@ -545,9 +554,9 @@ public class DynmapMeetsTowny extends JavaPlugin {
         this.saveConfig();  /* Save updates, if needed */
 
         /* Now, add marker set for mobs (make it transient) */
-        set = markerapi.getMarkerSet("towny.markerset");
+        set = markerAPI.getMarkerSet("towny.markerset");
         if(set == null)
-            set = markerapi.createMarkerSet("towny.markerset", cfg.getString("layer.name", "Towny"), null, false);
+            set = markerAPI.createMarkerSet("towny.markerset", cfg.getString("layer.name", "Towny"), null, false);
         else
             set.setMarkerSetLabel(cfg.getString("layer.name", "Towny"));
         if(set == null) {
@@ -567,15 +576,17 @@ public class DynmapMeetsTowny extends JavaPlugin {
         show_wilds = cfg.getBoolean("layer.showWilds", false);
 
         /* Get style information */
-        defstyle = new AreaStyle(cfg, "regionstyle", markerapi);
-        cusstyle = new HashMap<String, AreaStyle>();
-        nationstyle = new HashMap<String, AreaStyle>();
+        defstyle = new AreaStyle(cfg, "regionstyle", markerAPI);
+
+        cusstyle = Maps.newHashMap();
+        nationstyle = Maps.newHashMap();
+
         ConfigurationSection sect = cfg.getConfigurationSection("custstyle");
         if(sect != null) {
             Set<String> ids = sect.getKeys(false);
             
             for(String id : ids) {
-                cusstyle.put(id, new AreaStyle(cfg, "custstyle." + id, markerapi));
+                cusstyle.put(id, new AreaStyle(cfg, "custstyle." + id, markerAPI));
             }
         }
         sect = cfg.getConfigurationSection("nationstyle");
@@ -583,17 +594,14 @@ public class DynmapMeetsTowny extends JavaPlugin {
             Set<String> ids = sect.getKeys(false);
             
             for(String id : ids) {
-                nationstyle.put(id, new AreaStyle(cfg, "nationstyle." + id, markerapi));
+                nationstyle.put(id, new AreaStyle(cfg, "nationstyle." + id, markerAPI));
             }
         }
+
         List<String> vis = cfg.getStringList("visibleregions");
-        if(vis != null) {
-            visible = new HashSet<String>(vis);
-        }
+        visible = new HashSet<String>(vis);
         List<String> hid = cfg.getStringList("hiddenregions");
-        if(hid != null) {
-            hidden = new HashSet<String>(hid);
-        }
+        hidden = new HashSet<String>(hid);
 
         /* Check if player sets enabled */
         playersbytown = cfg.getBoolean("visibility-by-town", false);
