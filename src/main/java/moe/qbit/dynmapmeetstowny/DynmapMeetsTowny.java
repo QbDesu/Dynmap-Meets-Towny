@@ -44,7 +44,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
     private boolean playersByNation;
     private boolean dynamicNationColorsEnabled;
 
-    MarkerSet set;
+    MarkerSet markerSet;
 
     long updatePeriod;
     boolean use3d;
@@ -60,10 +60,13 @@ public class DynmapMeetsTowny extends JavaPlugin {
 
     BukkitTask updateTimerTask;
     private TownyChatListener townyChatListener;
+    private MarkerIcon homeIcon;
+    private MarkerIcon captitalIcon;
 
     @Override
     public void onLoad() {
         LOGGER = this.getLogger();
+        this.copyResources();
         this.initTownPopup();
         if(Bukkit.getPluginManager().getPlugin("TownyChat")!=null)
             this.initChat();
@@ -72,7 +75,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
 
     private void initTownPopup(){
         // TODO: make info window template configurable
-        InputStream town_popup_template_stream = this.getResource("town_popup_template.html");
+        InputStream town_popup_template_stream = TemplateHelper.getFileFromFolder(this, "templates/town_popup.html");
         assert town_popup_template_stream != null;
         Mustache template = MUSTACHE_FACTORY.compile(new InputStreamReader(town_popup_template_stream, Charsets.UTF_8),"town_popup");
         this.townPopup = new TownPopup(template);
@@ -406,7 +409,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
                 /* Find existing one */
                 AreaMarker m = resareas.remove(polyid); /* Existing area? */
                 if(m == null) {
-                    m = set.createAreaMarker(polyid, name, false, curworld.getName(), x, z, false);
+                    m = markerSet.createAreaMarker(polyid, name, false, curworld.getName(), x, z, false);
                     if(m == null) {
                         LOGGER.info("error adding area marker " + polyid);
                         return;
@@ -447,7 +450,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
                     double xx = townBlockSize*blk.getX() + (townBlockSize/2);
                     double zz = townBlockSize*blk.getZ() + (townBlockSize/2);
                     if(home == null) {
-                        home = set.createMarker(markid, name, blk.getWorld().getName(),
+                        home = markerSet.createMarker(markid, name, blk.getWorld().getName(),
                                 xx, 64, zz, ico, false);
                         if(home == null)
                             return;
@@ -546,62 +549,75 @@ public class DynmapMeetsTowny extends JavaPlugin {
             }
         }
     }
-    
-    private void activate(FileConfiguration cfg) {
-        markerAPI = dynmapAPI.getMarkerAPI();
-        if(markerAPI == null) {
+
+    private void copyResources(){
+        this.saveResource("markers/home.png", false);
+        this.saveResource("markers/capital.png", false);
+        this.saveResource("templates/town_popup.html", false);
+    }
+
+    private void initMarkerAPI(FileConfiguration cfg){
+        this.markerAPI = dynmapAPI.getMarkerAPI();
+        if (this.markerAPI == null) {
             LOGGER.severe("Error loading dynmap marker API!");
             return;
         }
-        /* Connect to towny API */
-        townBlockSize = Coord.getCellSize();
-        
-        /* Load configuration */
-        if(reload) {
-            reloadConfig();
-            if(set != null) {
-                set.deleteMarkerSet();
-                set = null;
-            }
-        }
-        else {
-            reload = true;
-        }
 
-        /* Now, add marker set for mobs (make it transient) */
-        set = markerAPI.getMarkerSet("towny.markerset");
-        if(set == null)
-            set = markerAPI.createMarkerSet("towny.markerset", cfg.getString("layer.name", "Towny"), null, false);
-        else
-            set.setMarkerSetLabel(cfg.getString("layer.name", "Towny"));
-        if(set == null) {
+        this.homeIcon = this.markerAPI.getMarkerIcon(String.format("%s_capital", this.getName()));
+        if(this.homeIcon!=null)
+            this.homeIcon.deleteIcon();
+        this.homeIcon = this.markerAPI.createMarkerIcon(String.format("%s_home", this.getName()), "home", TemplateHelper.getFileFromFolder(this, "markers/home.png"));
+
+        this.captitalIcon = this.markerAPI.getMarkerIcon(String.format("%s_capital", this.getName()));
+        if(this.captitalIcon !=null)
+            this.captitalIcon.deleteIcon();
+        this.captitalIcon = this.markerAPI.createMarkerIcon(String.format("%s_capital", this.getName()), "capital", TemplateHelper.getFileFromFolder(this, "markers/capital.png"));
+
+        this.markerSet = markerAPI.getMarkerSet("towny.markerset");
+        if (this.markerSet != null)
+            this.markerSet.deleteMarkerSet();
+        this.markerSet = markerAPI.createMarkerSet("towny.markerset", cfg.getString("layer.name", "Towny"), null, false);
+
+        if(markerSet == null) {
             LOGGER.severe("Error creating marker set");
             return;
         }
-        int minzoom = cfg.getInt("layer.minzoom", 0);
-        if(minzoom > 0)
-            set.setMinZoom(minzoom);
-        set.setLayerPriority(cfg.getInt("layer.layerprio", 10));
-        set.setHideByDefault(cfg.getBoolean("layer.hidebydefault", false));
-        use3d = cfg.getBoolean("use3dregions", false);
+
+        /* Now, add marker set for mobs (make it transient) */
+        markerSet.setMinZoom(cfg.getInt("layer.minzoom", -1));
+        markerSet.setLayerPriority(cfg.getInt("layer.layerprio", 10));
+        markerSet.setHideByDefault(cfg.getBoolean("layer.hidebydefault", false));
+    }
+    
+    private void activate(FileConfiguration cfg) {
+        /* Load configuration */
+        if(this.reload) {
+            reloadConfig();
+        }
+
+        /* Connect to towny API */
+        townBlockSize = Coord.getCellSize();
+        this.initMarkerAPI(cfg);
+
+        this.use3d = cfg.getBoolean("use3dregions", false);
         /* See if we need to show commercial areas */
-        show_shops = cfg.getBoolean("layer.showShops", false);
-        show_arenas = cfg.getBoolean("layer.showArenas", false);
-        show_embassies = cfg.getBoolean("layer.showEmbassies", false);
-        show_wilds = cfg.getBoolean("layer.showWilds", false);
+        this.show_shops = cfg.getBoolean("layer.showShops", false);
+        this.show_arenas = cfg.getBoolean("layer.showArenas", false);
+        this.show_embassies = cfg.getBoolean("layer.showEmbassies", false);
+        this.show_wilds = cfg.getBoolean("layer.showWilds", false);
 
         /* Get style information */
-        defstyle = new AreaStyle(cfg, "regionstyle", markerAPI);
+        this.defstyle = new AreaStyle(cfg, "regionstyle", markerAPI, this.homeIcon, this.captitalIcon);
 
-        cusstyle = Maps.newHashMap();
-        nationStyle = Maps.newHashMap();
+        this.cusstyle = Maps.newHashMap();
+        this.nationStyle = Maps.newHashMap();
 
         ConfigurationSection sect = cfg.getConfigurationSection("custstyle");
         if(sect != null) {
             Set<String> ids = sect.getKeys(false);
             
             for(String id : ids) {
-                cusstyle.put(id, new AreaStyle(cfg, "custstyle." + id, markerAPI));
+                cusstyle.put(id, new AreaStyle(cfg, "custstyle." + id, markerAPI, this.homeIcon, this.captitalIcon));
             }
         }
         sect = cfg.getConfigurationSection("nationstyle");
@@ -609,7 +625,7 @@ public class DynmapMeetsTowny extends JavaPlugin {
             Set<String> ids = sect.getKeys(false);
             
             for(String id : ids) {
-                nationStyle.put(id, new AreaStyle(cfg, "nationstyle." + id, markerAPI));
+                nationStyle.put(id, new AreaStyle(cfg, "nationstyle." + id, markerAPI, this.homeIcon, this.captitalIcon));
             }
         }
 
@@ -657,9 +673,9 @@ public class DynmapMeetsTowny extends JavaPlugin {
     }
 
     public void onDisable() {
-        if(set != null) {
-            this.set.deleteMarkerSet();
-            this.set = null;
+        if(markerSet != null) {
+            this.markerSet.deleteMarkerSet();
+            this.markerSet = null;
         }
         this.resareas.clear();
         this.bankCache.invalidate();

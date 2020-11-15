@@ -2,14 +2,30 @@ package moe.qbit.dynmapmeetstowny;
 
 import com.github.mustachejava.Mustache;
 import com.google.common.collect.Maps;
+import org.bukkit.plugin.java.JavaPlugin;
 
-import java.io.StringWriter;
-import java.io.Writer;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
 public class TemplateHelper {
+    @Nullable
+    public static InputStream getFileFromFolder(@Nonnull JavaPlugin plugin, @Nonnull String path){
+        File file = new File(plugin.getDataFolder(), path);
+        if(file.exists() && file.isFile()){
+            try {
+                return new FileInputStream(file);
+            } catch (FileNotFoundException ignored){
+                return null;
+            }
+        } else {
+            return null;
+        }
+    }
+
     public static Map<String, Object> createScope(){
         HashMap<String,Object> ret = Maps.newHashMap();
         ret.put("trim",(Function<String,String>)String::trim);

@@ -8,10 +8,10 @@ layer:
   name: "Towny"
   # Make mobs layer hidden by default
   hidebydefault: false
-  # ordering priority in layer menu (low goes before high - default is 0)
-  layerprio: 2
-  # (optional) set minimum zoom level before layer is visible (0 = defalt, always visible)
-  minzoom: 0
+  # ordering priority in layer menu (low goes before high - default is 10)
+  layerprio: 10
+  # (optional) set minimum zoom level before layer is visible (-1 = default, no minimum)
+  minzoom: -1
   # Show shop blocks with their own fill color
   showShops: false
   # Show arena blocks with their own fill color
@@ -35,8 +35,6 @@ regionstyle:
   strokeWeight: 3
   fillColor: "#FF0000"
   fillOpacity: 0.35
-  homeicon: "blueflag"
-  capitalicon: "king"
   fillColorShops: "#0000FF"
   fillColorArenas: "#FF00FF"
   fillColorEmbassies: "#00FFFF"

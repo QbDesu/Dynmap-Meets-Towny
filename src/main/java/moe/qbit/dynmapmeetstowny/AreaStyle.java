@@ -15,14 +15,12 @@ class AreaStyle {
     int fillcolor_embassies;
     int fillcolor_arenas;
     int fillcolor_wilds;
-    String homemarker;
-    String capitalmarker;
-    MarkerIcon homeicon;
-    MarkerIcon capitalicon;
+    MarkerIcon homeIcon;
+    MarkerIcon capitalIcon;
     int yc;
     boolean boost;
 
-    AreaStyle(FileConfiguration cfg, String path, MarkerAPI markerapi) {
+    AreaStyle(FileConfiguration cfg, String path, MarkerAPI markerapi, MarkerIcon homeIcon, MarkerIcon capitalIcon) {
         String sc = cfg.getString(path + ".strokeColor", null);
         strokeopacity = cfg.getDouble(path + ".strokeOpacity", -1);
         strokeweight = cfg.getInt(path + ".strokeWeight", -1);
@@ -53,26 +51,13 @@ class AreaStyle {
                 fillcolor_embassies = Integer.parseInt(fce.substring(1), 16);
             if (fcw != null)
                 fillcolor_wilds = Integer.parseInt(fcw.substring(1), 16);
-        } catch (NumberFormatException nfx) {
+        } catch (NumberFormatException ignored) {
         }
 
         fillopacity = cfg.getDouble(path + ".fillOpacity", -1);
-        homemarker = cfg.getString(path + ".homeicon", null);
-        if (homemarker != null) {
-            homeicon = markerapi.getMarkerIcon(homemarker);
-            if (homeicon == null) {
-                DynmapMeetsTowny.LOGGER.severe("Invalid homeicon: " + homemarker);
-                homeicon = markerapi.getMarkerIcon("blueicon");
-            }
-        }
-        capitalmarker = cfg.getString(path + ".capitalicon", null);
-        if (capitalmarker != null) {
-            capitalicon = markerapi.getMarkerIcon(capitalmarker);
-            if (capitalicon == null) {
-                DynmapMeetsTowny.LOGGER.severe("Invalid capitalicon: " + capitalmarker);
-                capitalicon = markerapi.getMarkerIcon("king");
-            }
-        }
+
+        this.homeIcon = homeIcon;
+        this.capitalIcon = capitalIcon;
     }
 
     public int getStrokeColor(AreaStyle cust, AreaStyle nat) {
@@ -168,21 +153,21 @@ class AreaStyle {
     }
 
     public MarkerIcon getHomeMarker(AreaStyle cust, AreaStyle nat) {
-        if ((cust != null) && (cust.homeicon != null))
-            return cust.homeicon;
-        else if ((nat != null) && (nat.homeicon != null))
-            return nat.homeicon;
+        if ((cust != null) && (cust.homeIcon != null))
+            return cust.homeIcon;
+        else if ((nat != null) && (nat.homeIcon != null))
+            return nat.homeIcon;
         else
-            return homeicon;
+            return homeIcon;
     }
 
     public MarkerIcon getCapitalMarker(AreaStyle cust, AreaStyle nat) {
-        if ((cust != null) && (cust.capitalicon != null))
-            return cust.capitalicon;
-        else if ((nat != null) && (nat.capitalicon != null))
-            return nat.capitalicon;
-        else if (capitalicon != null)
-            return capitalicon;
+        if ((cust != null) && (cust.capitalIcon != null))
+            return cust.capitalIcon;
+        else if ((nat != null) && (nat.capitalIcon != null))
+            return nat.capitalIcon;
+        else if (capitalIcon != null)
+            return capitalIcon;
         else
             return getHomeMarker(cust, nat);
     }
@@ -200,9 +185,9 @@ class AreaStyle {
 
     public boolean getBoost(AreaStyle cust, AreaStyle nat) {
         if ((cust != null) && cust.boost)
-            return cust.boost;
+            return true;
         else if ((nat != null) && nat.boost)
-            return nat.boost;
+            return true;
         else
             return boost;
     }
